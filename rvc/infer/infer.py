@@ -3,7 +3,7 @@ import sys
 import time
 import torch
 import logging
-
+import threading
 import numpy as np
 import soundfile as sf
 import librosa
@@ -37,7 +37,6 @@ cpt = None
 version = None
 n_spk = None
 
-
 def load_hubert():
     global hubert_model
     models, _, _ = checkpoint_utils.load_model_ensemble_and_task(
@@ -52,7 +51,6 @@ def load_hubert():
         hubert_model = hubert_model.float()
     hubert_model.eval()
 
-
 def remove_audio_noise(input_audio_path, reduction_strength=0.7):
     try:
         rate, data = wavfile.read(input_audio_path)
@@ -66,7 +64,6 @@ def remove_audio_noise(input_audio_path, reduction_strength=0.7):
         print(f"Error cleaning audio: {error}")
         return None
 
-
 def convert_audio_format(input_path, output_path, output_format):
     try:
         if output_format != "WAV":
@@ -79,7 +76,6 @@ def convert_audio_format(input_path, output_path, output_format):
         return output_path
     except Exception as error:
         print(f"Failed to convert audio to {output_format} format: {error}")
-
 
 def vc_single(
     sid=0,
@@ -195,7 +191,6 @@ def vc_single(
     except Exception as error:
         print(error)
 
-
 def get_vc(weight_root, sid):
     global n_spk, tgt_sr, net_g, vc, cpt, version
     if sid == "" or sid == []:
@@ -254,7 +249,6 @@ def get_vc(weight_root, sid):
     vc = VC(tgt_sr, config)
     n_spk = cpt["config"][-3]
 
-
 def infer_pipeline(
     f0up_key,
     filter_radius,
@@ -277,8 +271,21 @@ def infer_pipeline(
 
     get_vc(model_path, 0)
 
+    # Timer state
+    timer_running = True
+    start_time = time.time()
+
+    def print_elapsed_time():
+        while timer_running:
+            elapsed_time = time.time() - start_time
+            print(f"\rProcessing... Elapsed time: {elapsed_time:.2f} seconds", end="")
+            time.sleep(1)
+
+    # Start the timer in a separate thread
+    timer_thread = threading.Thread(target=print_elapsed_time)
+    timer_thread.start()
+
     try:
-        start_time = time.time()
         vc_single(
             sid=0,
             input_audio_path=audio_input_path,
@@ -292,25 +299,10 @@ def infer_pipeline(
             hop_length=hop_length,
             output_path=audio_output_path,
             split_audio=split_audio,
-            f0autotune=f0autotune,
-            filter_radius=filter_radius,
-        )
-
-        if clean_audio == "True":
-            cleaned_audio = remove_audio_noise(audio_output_path, clean_strength)
-            if cleaned_audio is not None:
-                sf.write(audio_output_path, cleaned_audio, tgt_sr, format="WAV")
-
-        output_path_format = audio_output_path.replace(".wav", f".{export_format.lower()}")
-        audio_output_path = convert_audio_format(
-            audio_output_path, output_path_format, export_format
-        )
-
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        print(
-            f"Conversion completed. Output file: '{audio_output_path}' in {elapsed_time:.2f} seconds."
-        )
+            ",")
+            return result
 
     except Exception as error:
-        print(f"Voice conversion failed: {error}")
+        print(f"Error: {error}")
+        return f"Error: {error}"
+
