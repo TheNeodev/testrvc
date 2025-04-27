@@ -20,7 +20,7 @@ torchaudio>=2.3.1  # Aligned with torch version
 noisereduce>=3.0.2
 
 # Machine learning
-git+https://github.com/IAHispano/fairseq@master; sys_platform == 'linux'  # Use latest commit
+git+https://github.com/IAHispano/fairseq; sys_platform == 'linux'  # Use latest commit
 fairseq>=0.12.2; sys_platform == 'win32'
 numba>=0.58.1; sys_platform == 'linux'  # Updated for numpy compatibility
 numba>=0.58.1; sys_platform == 'win32'
